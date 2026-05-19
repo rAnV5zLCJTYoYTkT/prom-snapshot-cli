@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/prometheus/prometheus/model/labels"
@@ -103,7 +105,18 @@ func writeCSV(w io.Writer, exports []SeriesExport) error {
 	return nil
 }
 
+// labelsMapToString serialises a labels map as a deterministic key=value string
+// sorted by label name, e.g. {__name__="up", job="prometheus"}.
 func labelsMapToString(m map[string]string) string {
-	b, _ := json.Marshal(m)
-	return string(b)
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	parts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		parts = append(parts, fmt.Sprintf("%s=%q", k, m[k]))
+	}
+	return "{" + strings.Join(parts, ", ") + "}"
 }
