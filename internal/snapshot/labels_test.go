@@ -33,6 +33,16 @@ func TestParseMatchers_Invalid(t *testing.T) {
 	}
 }
 
+func TestParseMatchers_Nil(t *testing.T) {
+	matchers, err := ParseMatchers(nil)
+	if err != nil {
+		t.Fatalf("unexpected error for nil input: %v", err)
+	}
+	if len(matchers) != 0 {
+		t.Fatalf("expected 0 matchers for nil input, got %d", len(matchers))
+	}
+}
+
 func TestLabelNames(t *testing.T) {
 	lsets := []labels.Labels{
 		labels.FromStrings("job", "prometheus", "instance", "localhost:9090"),
