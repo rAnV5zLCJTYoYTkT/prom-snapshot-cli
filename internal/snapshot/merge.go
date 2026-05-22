@@ -17,10 +17,10 @@ type MergeOptions struct {
 
 // MergeResult summarises the outcome of a merge operation.
 type MergeResult struct {
-	SourceCount int      `json:"source_count"`
-	SeriesMerged int     `json:"series_merged"`
-	BlocksWritten int    `json:"blocks_written"`
-	Warnings     []string `json:"warnings,omitempty"`
+	SourceCount   int      `json:"source_count"`
+	SeriesMerged  int      `json:"series_merged"`
+	BlocksWritten int      `json:"blocks_written"`
+	Warnings      []string `json:"warnings,omitempty"`
 }
 
 // MergeSnapshots opens multiple TSDB snapshot directories and reports
@@ -42,38 +42,9 @@ func MergeSnapshots(opts MergeOptions) (*MergeResult, error) {
 	seen := make(map[uint64]struct{})
 
 	for _, src := range opts.SourcePaths {
-		db, err := tsdb.OpenDBReadOnly(src, nil)
-		if err != nil {
-			return nil, fmt.Errorf("open source %q: %w", src, err)
+		if err := collectSeriesFingerprints(src, opts.Matchers, seen, result); err != nil {
+			return nil, err
 		}
-
-		querier, err := db.Querier(0, 1<<62)
-		if err != nil {
-			_ = db.Close()
-			return nil, fmt.Errorf("querier for %q: %w", src, err)
-		}
-
-		matchers := opts.Matchers
-		if len(matchers) == 0 {
-			matchers = []*labels.Matcher{labels.MustNewMatcher(labels.MatchRegexp, "__name__", ".+")}
-		}
-
-		ss := querier.Select(false, nil, matchers...)
-		for ss.Next() {
-			fp := ss.At().Labels().Hash()
-			if _, dup := seen[fp]; dup {
-				result.Warnings = append(result.Warnings,
-					fmt.Sprintf("duplicate series fingerprint %d in %s", fp, src))
-			}
-			seen[fp] = struct{}{}
-		}
-		if err := ss.Err(); err != nil {
-			_ = querier.Close()
-			_ = db.Close()
-			return nil, fmt.Errorf("iterate series in %q: %w", src, err)
-		}
-		_ = querier.Close()
-		_ = db.Close()
 	}
 
 	result.SeriesMerged = len(seen)
@@ -81,4 +52,39 @@ func MergeSnapshots(opts MergeOptions) (*MergeResult, error) {
 
 	sort.Strings(result.Warnings)
 	return result, nil
+}
+
+// collectSeriesFingerprints opens a single TSDB source, iterates over all
+// series matching the provided matchers, and records each series fingerprint
+// in seen. Duplicate fingerprints across sources are recorded as warnings.
+func collectSeriesFingerprints(src string, matchers []*labels.Matcher, seen map[uint64]struct{}, result *MergeResult) error {
+	db, err := tsdb.OpenDBReadOnly(src, nil)
+	if err != nil {
+		return fmt.Errorf("open source %q: %w", src, err)
+	}
+	defer db.Close()
+
+	querier, err := db.Querier(0, 1<<62)
+	if err != nil {
+		return fmt.Errorf("querier for %q: %w", src, err)
+	}
+	defer querier.Close()
+
+	if len(matchers) == 0 {
+		matchers = []*labels.Matcher{labels.MustNewMatcher(labels.MatchRegexp, "__name__", ".+")}
+	}
+
+	ss := querier.Select(false, nil, matchers...)
+	for ss.Next() {
+		fp := ss.At().Labels().Hash()
+		if _, dup := seen[fp]; dup {
+			result.Warnings = append(result.Warnings,
+				fmt.Sprintf("duplicate series fingerprint %d in %s", fp, src))
+		}
+		seen[fp] = struct{}{}
+	}
+	if err := ss.Err(); err != nil {
+		return fmt.Errorf("iterate series in %q: %w", src, err)
+	}
+	return nil
 }
