@@ -58,3 +58,16 @@ func TestExportOptions_DefaultFormat(t *testing.T) {
 		t.Errorf("expected FormatJSON, got %q", opts.Format)
 	}
 }
+
+func TestSeriesExport_EmptySamples(t *testing.T) {
+	se := SeriesExport{
+		Labels:  map[string]string{"__name__": "up"},
+		Samples: []Sample{},
+	}
+	if len(se.Samples) != 0 {
+		t.Errorf("expected 0 samples, got %d", len(se.Samples))
+	}
+	if len(se.Labels) != 1 {
+		t.Errorf("expected 1 label, got %d", len(se.Labels))
+	}
+}
