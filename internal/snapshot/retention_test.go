@@ -29,8 +29,8 @@ func TestRetentionOptions_NegativeMaxAge(t *testing.T) {
 		Path:   "/some/path",
 		MaxAge: -time.Hour,
 	})
-	if err == nil {
-		t.Fatal("expected error for negative max-age")
+	if err == nil || err.Error() != "max-age must be a positive duration" {
+		t.Fatalf("expected 'max-age must be a positive duration', got %v", err)
 	}
 }
 
