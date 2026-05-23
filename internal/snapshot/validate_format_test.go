@@ -35,6 +35,12 @@ func TestValidationResult_JSONRoundtrip(t *testing.T) {
 	if decoded.Valid != orig.Valid {
 		t.Errorf("valid mismatch")
 	}
+	if len(decoded.Issues) != len(orig.Issues) || decoded.Issues[0] != orig.Issues[0] {
+		t.Errorf("issues mismatch: got %v, want %v", decoded.Issues, orig.Issues)
+	}
+	if !decoded.CheckedAt.Equal(orig.CheckedAt) {
+		t.Errorf("checked_at mismatch: got %v, want %v", decoded.CheckedAt, orig.CheckedAt)
+	}
 }
 
 func TestValidationResult_JSONKeys(t *testing.T) {
